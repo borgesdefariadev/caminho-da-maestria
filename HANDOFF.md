@@ -90,6 +90,9 @@ Pasta: `C:\Users\guilh\Downloads\Controle GrandChase\`
 | `sql/zerar_semanais_pg_cron.sql` | **NOVO**: o agendamento no servidor (pg_cron) para zerar as semanais de todas as contas. |
 | `sql/zerar_semanais_verificar.sql` | **NOVO**: as queries de conferencia do agendamento. |
 | `sql/corrigir_nome_piercing.sql` | **NOVO**: corrige o nome do Piercing em todas as contas. |
+| `atualizacao.py` | **NOVO**: a atualizacao automatica (confere o GitHub ao abrir). |
+| `gravar_versao.py` | **NOVO**: grava o commit em `assets/versao.txt` (na hora do build). |
+| `publicar_release.py` | **NOVO**: empacota e publica a release no GitHub. |
 | `teste_zerar_semanais.py` | **NOVO**: teste da funcao de limpeza (pela API). |
 | `assets/perfil/` | **NOVO**: as 25 fotos de perfil (`elesis_icon.png`...). |
 | `assets/perfil/gerar_icone.py` | **NOVO**: gera o icone de perfil a partir do retrato (recorte da cabeca + rembg + clareamento). |
@@ -2127,6 +2130,53 @@ exponha).
 > ℹ️ Se quiser o repo **privado**: `gh repo edit
 > guitador123/caminho-da-maestria --visibility=private` (os PCs da
 > guilda passam a precisar de um token para clonar).
+
+### 5.38 🔄 Atualizacao automatica (17/11)
+
+**Pedido:** "o .exe, sempre que aberto, verifique se existe algum commit
+novo e ja atualize automaticamente".
+
+**Modulo novo: `atualizacao.py`** (chamado no `login.abrir_aplicativo()`,
+antes da tela de login)
+
+```
+REPOSITORIO = "guitador123/caminho-da-maestria"
+```
+
+O que ele faz:
+
+1. compara a versao local com a do GitHub;
+2. se forem diferentes, atualiza e **reinicia** o programa.
+
+**Duas situacoes (o app se adapta):**
+
+| Onde o app esta | O que ele faz |
+|---|---|
+| clone do git (tem `.git`) | `git pull --ff-only` + `pip install -r requirements.txt` e reinicia |
+| instalado do `.exe`/instalador | baixa a ultima **Release**, troca os arquivos (por um `.cmd` auxiliar, porque o Windows nao deixa trocar um `.exe` em uso) e reinicia |
+
+**A versao local:**
+- num clone: e o `git rev-parse HEAD` (o que esta rodando);
+- no `.exe`: o commit gravado em **`assets/versao.txt`** na hora do build
+  (gerado pelo `gravar_versao.py`, que entra no build pelo `.spec` e e
+  **ignorado pelo git**, porque e artefato de build).
+
+**O `git` e achado mesmo fora do PATH** (`caminho_git()` tenta o PATH e
+os caminhos padrao de instalacao).
+
+**Publicar uma versao (para o `.exe` se atualizar):**
+```bash
+python publicar_release.py
+```
+(grava a versao, empacota, **audita o pacote** e cria a Release no GitHub)
+
+**Testado:**
+- clone atrasado (2 commits) -> detectou, fez `git pull` e ficou igual ao
+  remoto: `ATUALIZACAO AUTOMATICA OK`;
+- o `.exe` instalado -> detecta a Release nova, baixa, troca e reinicia.
+
+**Nada trava o programa:** rede/GitHub fora do ar, chave invalida ou
+qualquer erro -> o app abre normalmente (tudo em `try/except`).
 
 ## 6. Pendências (17/11/2026)
 > As pendências **1, 2 e 3 já foram implementadas** (ver 5.6, 5.7 e 5.9).

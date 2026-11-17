@@ -49,14 +49,17 @@ def _app_dir():
 
 def _caminho_versao():
     """O arquivo com o commit em que esta versao foi montada."""
-    base = (os.path.join(sys.executable, "..", "_internal")
-            if getattr(sys, "frozen", False) else "")
-    if base:
-        base = os.path.normpath(base)
-        caminho = os.path.join(base, ARQUIVO_VERSAO)
+    candidatos = []
+    if getattr(sys, "frozen", False):
+        # no .exe, a pasta _internal fica IRMA do executavel
+        candidatos.append(os.path.join(os.path.dirname(sys.executable),
+                                       "_internal", ARQUIVO_VERSAO))
+    candidatos.append(os.path.join(_app_dir(), "_internal", ARQUIVO_VERSAO))
+    candidatos.append(os.path.join(_app_dir(), ARQUIVO_VERSAO))
+    for caminho in candidatos:
         if os.path.exists(caminho):
             return caminho
-    return os.path.join(_app_dir(), ARQUIVO_VERSAO)
+    return candidatos[-1]
 
 
 def versao_local():
@@ -151,19 +154,42 @@ def _atualizar_com_git():
     return True
 
 
+def _sha_da_release(tag):
+    """O commit de uma release, pelo nome da tag (v2026.11.17-9008aef)."""
+    parte = (tag or "").rsplit("-", 1)[-1].strip()
+    if parte and all(c in "0123456789abcdefABCDEF" for c in parte) \
+            and 7 <= len(parte) <= 40:
+        return parte.lower()
+    return ""
+
+
 def _ultima_release():
-    """A release mais recente com o .zip do programa."""
+    """(url_do_zip, sha_do_commit) da release mais recente."""
     dados = _pedir(f"{API}/releases/latest")
+    url = ""
     for asset in dados.get("assets", []):
         nome = asset.get("name", "")
-        if nome.lower().endswith(".zip") and NOME_ASSET.lower() in nome.lower():
-            return asset.get("browser_download_url")
-    return None
+        # o GitHub troca espaco por ponto no nome do asset
+        # ("Caminho.da.Maestria.zip"), entao comparamos sem pontuacao
+        limpo = nome.lower().replace(".", " ").replace("_", " ")
+        if nome.lower().endswith(".zip") and "maestria" in limpo:
+            url = asset.get("browser_download_url")
+            break
+    return url, _sha_da_release(dados.get("tag_name", ""))
+
+
+def _versao_da_release():
+    """A versao (sha) da ultima release, ou "" se nao houver."""
+    try:
+        dados = _pedir(f"{API}/releases/latest")
+        return _sha_da_release(dados.get("tag_name", ""))
+    except Exception:
+        return ""
 
 
 def _atualizar_com_release():
     """Baixa a ultima Release e troca os arquivos (depois de fechar)."""
-    url = _ultima_release()
+    url, _sha = _ultima_release()
     if not url:
         return False
     temporario = tempfile.mkdtemp(prefix="cm_atualizacao_")
@@ -253,11 +279,22 @@ def verificar_e_atualizar(mostrar=True):
     splash = _splash("Verificando atualizacoes...") if mostrar else None
     try:
         sha_local = versao_local()
-        sha_remoto, mensagem = commit_remoto()
-        if not sha_remoto:
-            return False
-        if sha_local and sha_local[:40] == sha_remoto[:40]:
-            return False   # ja esta na ultima
+        if tem_git():
+            # num clone: compara com o commit do GitHub
+            sha_remoto, mensagem = commit_remoto()
+            if not sha_remoto:
+                return False
+            if sha_local and sha_local[:40] == sha_remoto[:40]:
+                return False   # ja esta na ultima
+        else:
+            # no .exe: compara com a ULTIMA RELEASE (assim o app nao fica
+            # tentando atualizar sem ter release nova)
+            sha_release = _versao_da_release()
+            if not sha_release:
+                return False
+            if sha_local and sha_local.lower().startswith(sha_release):
+                return False   # ja esta na ultima release
+            mensagem = "versao nova disponivel"
     except Exception:
         return False      # sem internet/GitHub: segue normal
     finally:

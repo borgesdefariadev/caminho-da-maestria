@@ -43,8 +43,21 @@ def rodar(comando, **opcoes):
 
 def main():
     argumentos = sys.argv[1:]
-    versao = argumentos[0] if argumentos else "v" + datetime.now().strftime(
-        "%Y.%m.%d")
+    if argumentos:
+        versao = argumentos[0]
+    else:
+        # a tag leva o commit: e assim o .exe sabe se a release e
+        # mais nova que ele (sem isso ele ficaria tentando atualizar)
+        try:
+            from atualizacao import caminho_git
+            sha = subprocess.run([caminho_git(), "rev-parse", "HEAD"],
+                                 cwd=RAIZ, capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace",
+                                 timeout=60).stdout.strip()[:7]
+        except Exception:
+            sha = ""
+        versao = ("v" + datetime.now().strftime("%Y.%m.%d") +
+                  ("-" + sha if sha else ""))
 
     print("1) gravando a versao...")
     resultado = rodar([PYTHON, "gravar_versao.py"])
@@ -83,6 +96,13 @@ def main():
         raise SystemExit("ERRO: o pacote tem segredo (veja o relatorio)")
 
     print("\n5) publicando a release no GitHub...")
+    # se ja existe uma release com esse nome, apaga (para republicar)
+    antigo_release = rodar([GH, "release", "view", versao, "--repo",
+                            "guitador123/caminho-da-maestria"])
+    if antigo_release.returncode == 0:
+        print("    (a release antiga existe, apagando...)")
+        rodar([GH, "release", "delete", versao, "--yes", "--cleanup-tag",
+               "--repo", "guitador123/caminho-da-maestria"])
     notas = (f"Versao {versao} de {datetime.now():%d/%m/%Y %H:%M}.\n\n"
              "O .exe instalado baixa esta versao sozinho na proxima vez "
              "que for aberto.")

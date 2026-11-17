@@ -58,6 +58,34 @@ Pronto: os PCs da guilda pegam a versão nova no próximo `atualizar.bat`.
 
 ---
 
+## Atualização automática
+
+**Toda vez que o programa abre**, ele confere no GitHub se tem commit
+novo e, se tiver, **atualiza sozinho** e abre de novo.
+
+| Como o programa foi instalado | O que acontece |
+|---|---|
+| **Do repositório** (tem a pasta `.git`) | roda `git pull`, atualiza as dependências e reinicia |
+| **Do instalador / .exe** (sem `.git`) | baixa a última *Release* do GitHub, troca os arquivos e reinicia |
+
+Nada trava: se a internet cair ou o GitHub estiver fora do ar, o programa
+abre normalmente.
+
+### Publicar uma versão nova (para o `.exe` se atualizar)
+
+```bash
+python publicar_release.py        # gera a release no GitHub
+```
+
+Esse script grava a versão (o commit), empacota o programa, **audita o
+pacote** (nenhum segredo pode passar) e publica a *Release*. Aí é só
+esperar: todo `.exe` instalado atualiza sozinho na próxima abertura.
+
+> Se você só mudou o **código** e usa o repositório nos PCs da guilda,
+> basta o `git push` normal — o `git pull` do startup traz a novidade.
+
+---
+
 ## Rodar os testes
 
 A suíte completa (precisa de uma conta de teste no Supabase):

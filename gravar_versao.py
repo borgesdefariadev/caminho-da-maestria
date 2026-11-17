@@ -21,11 +21,17 @@ DESTINO = os.path.join(RAIZ, "assets", "versao.txt")
 
 
 def commit_atual():
+    """O commit atual (acha o git mesmo fora do PATH)."""
     try:
-        resultado = subprocess.run(["git", "rev-parse", "HEAD"], cwd=RAIZ,
+        from atualizacao import caminho_git
+        git = caminho_git()
+    except Exception:
+        git = "git"
+    try:
+        resultado = subprocess.run([git, "rev-parse", "HEAD"], cwd=RAIZ,
                                    capture_output=True, text=True,
                                    encoding="utf-8", errors="replace",
-                                   timeout=30)
+                                   timeout=60)
         sha = resultado.stdout.strip()
         if sha:
             return sha[:40]
