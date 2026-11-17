@@ -2075,6 +2075,54 @@ brinco    | Brinco do Outro Mundo do Caos    -> #fb7185 (vermelho)
   (e adicionar o nome novo na lista) e mexer no **codigo** — ou seja,
   ai sim precisa refazer o `.exe`.
 
+### 5.37 🔗 O projeto no GitHub (17/11)
+
+```
+https://github.com/guitador123/caminho-da-maestria
+```
+
+**O que foi feito**
+- Git instalado (winget) + GitHub CLI (`gh`), autorizado na conta
+  `guitador123`;
+- repositorio criado e **publico** (para os PCs da guilda clonarem sem
+  credencial), com 2 commits e **172 arquivos** (27,5 MB);
+- `.gitignore` que **nao deixa subir**: `.venv`, `dist/`, `build/`,
+  `instalador/` (755 MB), `__pycache__`, `_capturas/`, `login_prefs.json`,
+  `service_role.txt`, `*.env`, `*.key`...
+- `.gitattributes` (LF no repo, CRLF nos `.bat`/`.cmd`);
+- `requirements.txt` (as dependencias), `README.md` (instrucoes),
+  **`iniciar.bat`** (prepara o PC) e **`atualizar.bat`** (atualiza e abre).
+
+**Como atualizar o PC da guilda (sem instalador)**
+
+1. uma vez so, no PC da guilda:
+   ```bat
+   git clone https://github.com/guitador123/caminho-da-maestria.git
+   cd caminho-da-maestria
+   ```
+   e clique em **`iniciar.bat`** (cria o `.venv` e abre o app);
+2. para atualizar: **dois cliques no `atualizar.bat`** (ele faz o
+   `git pull`, atualiza as dependencias e abre o app).
+
+No PC do dono, para publicar uma versao nova:
+```bash
+git add . && git commit -m "o que mudou" && git push
+```
+
+**Testado:** `git clone` do repositorio (sem credencial) + o app abrindo
+a partir do clone — **CLONE OK**.
+
+**Seguranca:** o commit foi auditado (nenhuma `service_role`, nenhum
+`sb_secret_`, nenhum JWT, nenhuma chave privada). A unica chave no
+codigo e a **publishable key** do Supabase (publica por design). O
+e-mail/senha da conta pessoal antiga foram **removidos** do codigo e do
+HANDOFF (nos scripts de auditoria eles eram procurados — e isso os
+exponha).
+
+> ℹ️ Se quiser o repo **privado**: `gh repo edit
+> guitador123/caminho-da-maestria --visibility=private` (os PCs da
+> guilda passam a precisar de um token para clonar).
+
 ## 6. Pendências (17/11/2026)
 > As pendências **1, 2 e 3 já foram implementadas** (ver 5.6, 5.7 e 5.9).
 > As decisões já fechadas estão em 6.1; as tarefas em 6.2.
