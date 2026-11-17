@@ -168,6 +168,8 @@ def _atualizar_com_git():
         subprocess.run([python, "-m", "pip", "install", "-r",
                         "requirements.txt", "--quiet"], cwd=pasta,
                        capture_output=True, timeout=900)
+    # quem abre o programa de novo e o auxiliar (o app vai sair)
+    _agendar_troca(pasta, copiar=False)
     return True
 
 
@@ -239,20 +241,43 @@ def _atualizar_com_release():
         return False
 
 
-def _agendar_troca(novos):
-    """Cria o script que troca os arquivos (depois que o app fechar)."""
+def _agendar_troca(novos, copiar=True):
+    """Cria o script que troca os arquivos e abre o programa de novo.
+
+    O Windows nao deixa trocar um arquivo que esta em uso, entao a troca
+    so pode acontecer DEPOIS que o programa atual fecha. Por isso quem
+    abre de novo e este script (e nao o app).
+    """
     destino = _app_dir()
     auxiliar = os.path.join(tempfile.gettempdir(), "cm_trocar_arquivos.cmd")
+    exe = os.path.join(destino, "Caminho da Maestria.exe")
+    if copiar:
+        copia = (f'robocopy "{novos}" "{destino}" /MIR /XF login_prefs.json '
+                 "/NFL /NDL /NJH /NJS /NP >nul\r\n"
+                 "if errorlevel 8 (\r\n"
+                 "    set /a tentativas+=1\r\n"
+                 "    if !tentativas! GEQ 5 goto :falhou\r\n"
+                 "    ping 127.0.0.1 -n 3 >nul\r\n"
+                 "    goto :copia\r\n"
+                 ")\r\n")
+        limpeza = f'rmdir /s /q "{novos}" >nul 2>&1\r\n'
+    else:
+        copia = ""
+        limpeza = ""
     with open(auxiliar, "w", encoding="utf-8", newline="\r\n") as arquivo:
         arquivo.write(
             "@echo off\r\n"
-            "rem troca os arquivos do programa e abre de novo\r\n"
-            "ping 127.0.0.1 -n 4 >nul\r\n"
-            f'robocopy "{novos}" "{destino}" /MIR /XF login_prefs.json '
-            "/NFL /NDL /NJH /NJS /NP >nul\r\n"
-            f'start "" "{os.path.join(destino, "Caminho da Maestria.exe")}"\r\n'
-            f'rmdir /s /q "{novos}" >nul 2>&1\r\n'
-            f'del /q "{auxiliar}" >nul 2>&1\r\n')
+            "setlocal enabledelayedexpansion\r\n"
+            "set /a tentativas=0\r\n"
+            "rem espera o programa atual fechar, troca os arquivos e abre\r\n"
+            "ping 127.0.0.1 -n 5 >nul\r\n"
+            ":copia\r\n"
+            + copia +
+            f'start "" "{exe}"\r\n'
+            + limpeza +
+            f'del /q "{auxiliar}" >nul 2>&1\r\n'
+            ":falhou\r\n"
+            "echo nao foi possivel trocar os arquivos >nul 2>&1\r\n")
     subprocess.Popen(["cmd", "/c", auxiliar], creationflags=0x08000000)
 
 
@@ -347,10 +372,11 @@ def verificar_e_atualizar(mostrar=True):
                 splash.destroy()
             except Exception:
                 pass
-        if tem_git():
-            reiniciar()          # a troca ja foi feita (git pull)
-        else:
-            reiniciar()          # o auxiliar troca e abre de novo
+        _registrar("atualizacao aplicada; o programa vai abrir de novo")
+        # o app sai agora: quem abre de novo e o auxiliar (que ja foi
+        # criado). Se o app abrisse agora, os arquivos ficariam em uso e
+        # a troca nao aconteceria.
+        os._exit(0)
     return deu_certo
 
 
