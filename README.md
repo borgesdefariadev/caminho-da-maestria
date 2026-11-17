@@ -23,7 +23,13 @@ clique em **`Instalar.cmd`**.
 
 1. instale o [Python 3.11+](https://www.python.org/downloads/) (marque
    **"Add python.exe to PATH"**) e o [Git](https://git-scm.com/download/win);
-2. clone este repositório;
+2. clone este repositório:
+
+   ```bat
+   git clone https://github.com/guitador123/caminho-da-maestria.git
+   cd caminho-da-maestria
+   ```
+
 3. clique duas vezes em **`iniciar.bat`**.
 
 O `iniciar.bat` cria o ambiente `.venv`, instala as dependências e abre o
@@ -45,6 +51,10 @@ git push
 ```
 
 Pronto: os PCs da guilda pegam a versão nova no próximo `atualizar.bat`.
+
+> É o jeito **sem instalador**: você publica no GitHub e, lá na guilda,
+> é só dar dois cliques no `atualizar.bat` (ele faz o `git pull` e abre
+> o programa).
 
 ---
 
