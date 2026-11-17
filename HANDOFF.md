@@ -2069,11 +2069,16 @@ brinco    | Brinco do Outro Mundo do Caos    -> #fb7185 (vermelho)
 - para as **outras contas**, o script `sql/corrigir_nome_piercing.sql`
   (rode no SQL Editor do Supabase).
 
-**Pendencias pequenas nesse arquivo:**
-- a lista de opcoes do dropdown ainda tem o nome antigo
-  (`opcoes.py`) e um typo: `"PIercing da Dimensao Raro"`. Corrigir isso
-  (e adicionar o nome novo na lista) e mexer no **codigo** — ou seja,
-  ai sim precisa refazer o `.exe`.
+**A lista do dropdown tambem foi corrigida** (`opcoes.py`): o nome
+antigo saiu, o novo entrou e o typo `"PIercing da Dimensao Raro"` virou
+`"Piercing da Dimensao Raro"`. Como isso e **codigo**, o `.exe` foi
+refeito (e o `git push` leva a correcao para os PCs da guilda).
+
+```
+piercing | Piercing do Outro Mundo do Caos | Piercing da Dimensao Lendario |
+          Piercing da Dimensao Epico | Piercing da Dimensao Raro |
+          Piercing do Piu Piu
+```
 
 ### 5.37 🔗 O projeto no GitHub (17/11)
 

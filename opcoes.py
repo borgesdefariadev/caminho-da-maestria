@@ -118,7 +118,7 @@ OPCOES = {
     "Acessórios Título": {
         "anel": ["Anel do Ciclo Infinito", "Promessa Incumprível III", "Anel do Infinito III", "Anel do Infinito II", "Anel do Infinito I", "Anel do Harkyon", "Anel do Piu Piu"],
         "brinco": ["Brinco do Outro Mundo do Caos", "Brinco da Dimensão Lendário", "Brinco da Dimensão Épico", "Brinco da Dimensão Raro", "Brinco do Piu Piu"],
-        "piercing": ["Piercing da Dimensão do Caos", "Piercing da Dimensão Lendário", "Piercing da Dimensão Épico", "PIercing da Dimensão Raro", "Piercing do Piu Piu"],
+        "piercing": ["Piercing do Outro Mundo do Caos", "Piercing da Dimensão Lendário", "Piercing da Dimensão Épico", "Piercing da Dimensão Raro", "Piercing do Piu Piu"],
         "tornozeleira": ["Outra", "Eternidade", "Harmonia", "Consolação", "Escuridão", "Apocalipse"],
         "titulo": ["Origem do Caos", "Renak", "Portador da Grande Coragem", "Aquele que Superou a Morte", "( Verdadeiro ) Iluminador Abissal", "O Sacrifício dos 12 Discípulos Escolhidos", "Aniquilador do Vazio", "Aquele que Consome o Caos", "Fim de Uma Noite Tranquila", "Apocalipse do Mundo", "O Dia do Julgamento", "Outro"],
     },
