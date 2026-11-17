@@ -22,6 +22,7 @@ ar ou der qualquer erro, o app abre normalmente.
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,14 @@ import zipfile
 REPOSITORIO = "guitador123/caminho-da-maestria"
 BRANCH = "main"
 API = f"https://api.github.com/repos/{REPOSITORIO}"
+SITE = f"https://github.com/{REPOSITORIO}"
+# os feeds Atom do GitHub NAO tem limite de requisicoes (a API tem 60/hora
+# por IP, o que acabaria com varios PCs da guilda ao mesmo tempo)
+FEED_COMMITS = f"{SITE}/commits/{BRANCH}.atom"
+FEED_RELEASES = f"{SITE}/releases.atom"
+# o nome do arquivo da release (sem espaco: o GitHub troca por ponto)
+NOME_ASSET = "Caminho-da-Maestria.zip"
+URL_DOWNLOAD = f"{SITE}/releases/latest/download/{NOME_ASSET}"
 ARQUIVO_VERSAO = os.path.join("assets", "versao.txt")
 TIMEOUT = 10          # segundos de espera pela rede
 NOME_ASSET = "Caminho da Maestria"   # prefixo do .zip da Release
@@ -113,11 +122,26 @@ def _pedir(url, destino=None):
         return json.loads(resposta.read().decode("utf-8"))
 
 
+def _atom(url):
+    """Baixa um feed Atom do GitHub (sem limite de requisicoes)."""
+    requisicao = urllib.request.Request(
+        url, headers={"User-Agent": "Caminho-da-Maestria"})
+    with urllib.request.urlopen(requisicao, timeout=TIMEOUT) as resposta:
+        return resposta.read().decode("utf-8", errors="replace")
+
+
 def commit_remoto():
     """(sha, mensagem) do ultimo commit da branch principal."""
-    dados = _pedir(f"{API}/commits/{BRANCH}")
-    return (dados.get("sha", "")[:40],
-            (dados.get("commit", {}).get("message", "") or "").split("\n")[0])
+    texto = _atom(FEED_COMMITS)
+    sha = ""
+    mensagem = ""
+    achado = re.search(r"Grit::Commit/([0-9a-f]{40})", texto)
+    if achado:
+        sha = achado.group(1)
+    achado = re.search(r"<entry>.*?<title>(.*?)</title>", texto, re.S)
+    if achado:
+        mensagem = achado.group(1).strip()
+    return sha, mensagem
 
 
 GIT_PADRAO = [
@@ -184,26 +208,29 @@ def _sha_da_release(tag):
 
 def _ultima_release():
     """(url_do_zip, sha_do_commit) da release mais recente."""
-    dados = _pedir(f"{API}/releases/latest")
-    url = ""
-    for asset in dados.get("assets", []):
-        nome = asset.get("name", "")
-        # o GitHub troca espaco por ponto no nome do asset
-        # ("Caminho.da.Maestria.zip"), entao comparamos sem pontuacao
-        limpo = nome.lower().replace(".", " ").replace("_", " ")
-        if nome.lower().endswith(".zip") and "maestria" in limpo:
-            url = asset.get("browser_download_url")
-            break
-    return url, _sha_da_release(dados.get("tag_name", ""))
+    return URL_DOWNLOAD, _versao_da_release()
 
 
 def _versao_da_release():
-    """A versao (sha) da ultima release, ou "" se nao houver."""
+    """A versao (sha) da release mais recente, ou "" se nao houver.
+
+    O feed vem em ordem de criacao, entao a gente procura a entrada com a
+    data de `updated` mais nova (e a mesma que o GitHub chama de "latest").
+    """
     try:
-        dados = _pedir(f"{API}/releases/latest")
-        return _sha_da_release(dados.get("tag_name", ""))
+        texto = _atom(FEED_RELEASES)
     except Exception:
         return ""
+    melhor = ("", "")
+    for entrada in re.findall(r"<entry>(.*?)</entry>", texto, re.S):
+        tag = re.search(r"/v[0-9]{4}\.[0-9]{2}\.[0-9]{2}-([0-9a-f]{7,40})",
+                        entrada)
+        quando = re.search(r"<updated>(.*?)</updated>", entrada)
+        if not tag or not quando:
+            continue
+        if quando.group(1) > melhor[1]:
+            melhor = (tag.group(1).lower(), quando.group(1))
+    return melhor[0]
 
 
 def _atualizar_com_release():
@@ -338,6 +365,7 @@ def verificar_e_atualizar(mostrar=True):
             # tentando atualizar sem ter release nova)
             sha_release = _versao_da_release()
             if not sha_release:
+                _registrar("nao ha release nova (ou sem rede)")
                 return False
             if sha_local and sha_local.lower().startswith(sha_release):
                 return False   # ja esta na ultima release

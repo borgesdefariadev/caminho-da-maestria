@@ -28,7 +28,9 @@ from datetime import datetime
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(RAIZ, "dist", "Caminho da Maestria")
 SAIDA = os.path.join(RAIZ, "instalador")
-NOME_ZIP = "Caminho da Maestria.zip"
+# sem espaco: o GitHub troca espaco por ponto no nome do asset
+# e o app baixa por este nome
+NOME_ZIP = "Caminho-da-Maestria.zip"
 GH = r"C:\Program Files\GitHub CLI\gh.exe"
 PYTHON = sys.executable
 
