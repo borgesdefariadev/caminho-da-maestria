@@ -30,6 +30,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import zipfile
 
 REPOSITORIO = "guitador123/caminho-da-maestria"
 BRANCH = "main"
@@ -40,6 +41,22 @@ NOME_ASSET = "Caminho da Maestria"   # prefixo do .zip da Release
 
 
 # ------------------------------------------------------------- ferramentas
+LOG = os.path.join(os.environ.get("LOCALAPPDATA",
+                                    os.path.expanduser("~")),
+                     "Caminho da Maestria", "log_atualizacao.log")
+
+
+def _registrar(texto):
+    """Deixa um registro do que a atualizacao fez (para depurar)."""
+    try:
+        from datetime import datetime
+        os.makedirs(os.path.dirname(LOG), exist_ok=True)
+        with open(LOG, "a", encoding="utf-8") as arquivo:
+            arquivo.write(f"{datetime.now():%d/%m %H:%M:%S} | {texto}\n")
+    except Exception:
+        pass
+
+
 def _app_dir():
     """A pasta do programa (no .exe, a pasta do executavel)."""
     if getattr(sys, "frozen", False):
@@ -197,7 +214,7 @@ def _atualizar_com_release():
         zip_arquivo = os.path.join(temporario, "programa.zip")
         _pedir(url, zip_arquivo)
         destino = os.path.join(temporario, "programa")
-        with shutil.ZipFile(zip_arquivo) as pacote:
+        with zipfile.ZipFile(zip_arquivo) as pacote:
             pacote.extractall(destino)
         # a release pode ter uma pasta dentro do zip
         if not os.path.exists(os.path.join(destino, "Caminho da Maestria.exe")):
@@ -208,13 +225,18 @@ def _atualizar_com_release():
                     destino = sub
                     break
         if not os.path.exists(os.path.join(destino, "Caminho da Maestria.exe")):
+            _registrar("o zip da release nao tem o executavel")
             return False
+        _registrar(f"release baixada: {url}")
         _agendar_troca(destino)
+        _registrar("troca agendada; o programa vai abrir de novo")
+        # NAO apaga a pasta temporaria agora: o auxiliar precisa dela
+        # para copiar os arquivos (e ele apaga no final)
         return True
-    except Exception:
-        return False
-    finally:
+    except Exception as erro:
+        _registrar(f"ERRO ao baixar a release: {erro!r}")
         shutil.rmtree(temporario, ignore_errors=True)
+        return False
 
 
 def _agendar_troca(novos):
