@@ -1826,7 +1826,7 @@ teste@teste.com / testeteste
 ```
 
 **O que foi trocado:** todos os `teste_*.py` (e o `limpar_duplicados.py`)
-passam a usar a conta nova no lugar de `guiberchol123@outlook.com`. O
+passam a usar a conta nova no lugar da conta pessoal antiga. O
 `teste_integracao.py` antes **exigia** e-mail e senha na linha de
 comando; agora ele usa a conta de teste por padrao (e so aceita os
 argumentos se voce quiser outra conta).

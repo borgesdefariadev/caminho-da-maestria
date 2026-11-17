@@ -24,8 +24,8 @@ VERIFICACOES = [
     ("service_role key (admin do banco)", rb"service_role", True),
     ("chave secreta do Supabase", rb"sb_secret_", True),
     ("JWT de servico", rb"eyJ[A-Za-z0-9_\-]{40,}", True),
-    ("senha da conta pessoal", rb"Gui10121330", True),
-    ("e-mail da conta pessoal", rb"guiberchol123@outlook\.com", True),
+    # (o e-mail e a senha pessoais NAO ficam aqui: o proprio script
+    #  procuraria por eles e viraria o lugar onde eles vazam)
     ("chave privada (-----BEGIN)", rb"-----BEGIN [A-Z ]*PRIVATE KEY", True),
     ("arquivo .env / .pem / .key", rb"", False),
     ("publishable key (PUBLICA, pode ir)", rb"sb_publishable_[A-Za-z0-9_]+", False),
