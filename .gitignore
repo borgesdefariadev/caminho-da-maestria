@@ -31,6 +31,10 @@ assets/perfil/.venv/
 assets/perfil/icones_128/
 .pytest_cache/
 
+# --- artefatos de build ---------------------------------
+# a versao (commit) e gravada na hora do build
+assets/versao.txt
+
 # --- capturas de teste ------------------------------------
 _capturas/
 *.png.tmp

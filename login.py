@@ -651,7 +651,18 @@ class LoginApp(ctk.CTk):
 
 # ---------------------------------------------------------------------------
 def abrir_aplicativo():
-    """Ponto de entrada: login -> app principal (gate de acesso)."""
+    """Ponto de entrada: login -> app principal (gate de acesso).
+
+    Antes de tudo, o programa confere no GitHub se tem commit novo e
+    atualiza sozinho (se ja estiver na ultima, segue normal).
+    """
+    try:
+        from atualizacao import verificar_e_atualizar
+        if verificar_e_atualizar():
+            return          # atualizou e ja reiniciou
+    except Exception:
+        pass
+
     resultado = {}
     janela = LoginApp(resultado)
     janela._aplicar_conta_memorizada()

@@ -13,6 +13,8 @@ a = Analysis(
            (os.path.join(SPECPATH, 'assets', 'app.ico'), 'assets'),
            # o QR Code do Pix (imagem pronta do usuario)
            (os.path.join(SPECPATH, 'assets', 'qrcode-pix.png'), 'assets'),
+           # a versao (commit) em que este .exe foi feito
+           (os.path.join(SPECPATH, 'assets', 'versao.txt'), 'assets'),
            (os.path.join(SPECPATH, 'assets', 'personagens'), 'assets/personagens'),
            (os.path.join(SPECPATH, 'assets', 'chaser'), 'assets/chaser'),
            # so os PNGs (a pasta tem um .venv de 400 MB e varios logs)
