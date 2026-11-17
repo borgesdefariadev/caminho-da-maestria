@@ -1,0 +1,102 @@
+# -*- coding: utf-8 -*-
+"""
+Publica uma versao nova no GitHub, para o **.exe** se atualizar sozinho.
+
+O que ele faz:
+  1. grava a versao (o commit) em `assets/versao.txt`;
+  2. empacota o programa (pyinstaller);
+  3. monta o .zip da release;
+  4. cria a release no GitHub (com `gh release create`).
+
+Depois disso, qualquer .exe instalado que abrir o programa:
+  - ve que a release e nova;
+  - baixa o .zip;
+  - troca os arquivos e abre de novo.
+
+    python publicar_release.py            (sugere a proxima versao)
+    python publicar_release.py v1.2       (forca a versao)
+"""
+
+import io
+import os
+import shutil
+import subprocess
+import sys
+import zipfile
+from datetime import datetime
+
+RAIZ = os.path.dirname(os.path.abspath(__file__))
+DIST = os.path.join(RAIZ, "dist", "Caminho da Maestria")
+SAIDA = os.path.join(RAIZ, "instalador")
+NOME_ZIP = "Caminho da Maestria.zip"
+GH = r"C:\Program Files\GitHub CLI\gh.exe"
+PYTHON = sys.executable
+
+
+def rodar(comando, **opcoes):
+    print("   $", " ".join(str(c) for c in comando[:6]), "...")
+    return subprocess.run(comando, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace",
+                          cwd=opcoes.get("cwd", RAIZ),
+                          timeout=opcoes.get("timeout", 3600))
+
+
+def main():
+    argumentos = sys.argv[1:]
+    versao = argumentos[0] if argumentos else "v" + datetime.now().strftime(
+        "%Y.%m.%d")
+
+    print("1) gravando a versao...")
+    resultado = rodar([PYTHON, "gravar_versao.py"])
+    print(resultado.stdout.strip())
+
+    print("\n2) empacotando o programa (pyinstaller)...")
+    resultado = rodar([PYTHON, "-m", "PyInstaller", "Controle Grand Chase.spec",
+                        "--noconfirm", "--distpath", "dist",
+                        "--workpath", "build"], timeout=3600)
+    if resultado.returncode != 0:
+        print(resultado.stdout[-1500:])
+        print(resultado.stderr[-800:])
+        raise SystemExit("ERRO no build")
+
+    print("\n3) montando o .zip da release...")
+    if not os.path.exists(os.path.join(DIST, "Caminho da Maestria.exe")):
+        raise SystemExit(f"o build nao esta em {DIST}")
+    os.makedirs(SAIDA, exist_ok=True)
+    zip_caminho = os.path.join(SAIDA, NOME_ZIP)
+    if os.path.exists(zip_caminho):
+        os.remove(zip_caminho)
+    with zipfile.ZipFile(zip_caminho, "w", zipfile.ZIP_DEFLATED,
+                         compresslevel=9) as pacote:
+        for base, _pastas, arquivos in os.walk(DIST):
+            for arquivo in arquivos:
+                caminho = os.path.join(base, arquivo)
+                pacote.write(caminho,
+                             os.path.relpath(caminho, DIST))
+    print(f"    {zip_caminho} "
+          f"({os.path.getsize(zip_caminho) / (1024 * 1024):.0f} MB)")
+
+    print("\n4) auditando o pacote...")
+    resultado = rodar([PYTHON, "auditoria_instalador.py"])
+    if "APROVADO" not in resultado.stdout:
+        print(resultado.stdout[-800:])
+        raise SystemExit("ERRO: o pacote tem segredo (veja o relatorio)")
+
+    print("\n5) publicando a release no GitHub...")
+    notas = (f"Versao {versao} de {datetime.now():%d/%m/%Y %H:%M}.\n\n"
+             "O .exe instalado baixa esta versao sozinho na proxima vez "
+             "que for aberto.")
+    resultado = rodar([GH, "release", "create", versao, zip_caminho,
+                       "--repo", "guitador123/caminho-da-maestria",
+                       "--title", f"Caminho da Maestria {versao}",
+                       "--notes", notas])
+    print(resultado.stdout.strip() or resultado.stderr.strip()[-600:])
+    if resultado.returncode != 0:
+        raise SystemExit("ERRO ao publicar a release")
+
+    print(f"\n[OK] release {versao} publicada!")
+    print("     os .exe instalados vao se atualizar sozinhos")
+
+
+if __name__ == "__main__":
+    main()

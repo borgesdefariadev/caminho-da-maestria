@@ -60,10 +60,21 @@ def _caminho_versao():
 
 
 def versao_local():
-    """O commit (ou a data) com que esta versao foi montada."""
+    """O commit com que esta versao foi montada.
+
+    - rodando de um clone do git: e o HEAD local (exatamente o que esta
+      rodando);
+    - rodando do .exe: e o commit gravado em `assets/versao.txt` na hora
+      do build.
+    """
+    if tem_git():
+        try:
+            return _git("rev-parse", "HEAD").stdout.strip()[:40]
+        except Exception:
+            return ""
     try:
         with open(_caminho_versao(), "r", encoding="utf-8") as arquivo:
-            return arquivo.read().strip()
+            return arquivo.read().strip().splitlines()[0].strip()[:40]
     except Exception:
         return ""
 
@@ -89,6 +100,32 @@ def commit_remoto():
             (dados.get("commit", {}).get("message", "") or "").split("\n")[0])
 
 
+GIT_PADRAO = [
+    r"C:\Program Files\Git\cmd\git.exe",
+    r"C:\Program Files (x86)\Git\cmd\git.exe",
+    os.path.join(os.environ.get("LOCALAPPDATA", ""),
+                 "Programs", "Git", "cmd", "git.exe"),
+]
+
+
+def caminho_git():
+    """O executavel do git (no PATH ou nos caminhos padrao)."""
+    achado = shutil.which("git")
+    if achado:
+        return achado
+    for caminho in GIT_PADRAO:
+        if caminho and os.path.exists(caminho):
+            return caminho
+    return "git"
+
+
+def _git(*argumentos):
+    """Roda um comando do git na pasta do programa."""
+    return subprocess.run([caminho_git()] + list(argumentos), cwd=_app_dir(),
+                          capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=60)
+
+
 def tem_git():
     """O programa esta rodando de dentro de um clone do git?"""
     return os.path.isdir(os.path.join(_app_dir(), ".git"))
@@ -98,7 +135,7 @@ def tem_git():
 def _atualizar_com_git():
     """git pull + dependencias (o app esta num clone)."""
     pasta = _app_dir()
-    resultado = subprocess.run(["git", "pull", "--ff-only"], cwd=pasta,
+    resultado = subprocess.run([caminho_git(), "pull", "--ff-only"], cwd=pasta,
                                capture_output=True, text=True,
                                encoding="utf-8", errors="replace",
                                timeout=180)
