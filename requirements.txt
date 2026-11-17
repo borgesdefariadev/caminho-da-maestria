@@ -1,0 +1,29 @@
+# ============================================================
+#  Caminho da Maestria - dependencias
+#
+#  Instalar:  python -m pip install -r requirements.txt
+#
+#  (o app tambem roda pelo instalador, que ja traz tudo embutido)
+# ============================================================
+
+# interface
+customtkinter>=5.2
+
+# banco de dados (Supabase: auth + postgres/postgrest)
+supabase>=2.0
+
+# imagens (fundos, icones, QR Code, recorte dos retratos)
+pillow>=10.0
+
+# Excel (importar/exportar a planilha)
+pandas>=2.0
+openpyxl>=3.1
+
+# numerico (o gradiente do cenario e do fundo do login)
+numpy>=1.26
+
+# QR Code do Pix
+qrcode>=7.4
+
+# --- so para empacotar o .exe (nao e preciso no PC do usuario) ---
+# pyinstaller>=6.0

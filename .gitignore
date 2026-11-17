@@ -1,0 +1,43 @@
+# ============================================================
+#  Caminho da Maestria - o que NAO vai para o GitHub
+#  (as senhas/chaves tambem ficam de fora - veja o aviso)
+# ============================================================
+
+# --- segredos (NUNCA subir) ---------------------------------
+service_role.txt
+*.service_role
+.env
+.env.*
+secrets.txt
+login_prefs.json
+gc_app.log
+*.log
+
+# --- builds e instaladores -------------------------------
+dist/
+build/
+instalador/
+*.zip
+*.exe
+
+# --- ambientes python -------------------------------------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+assets/perfil/.venv/
+assets/perfil/icones_128/
+.pytest_cache/
+
+# --- capturas de teste ------------------------------------
+_capturas/
+*.png.tmp
+
+# --- sistema ----------------------------------------------
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

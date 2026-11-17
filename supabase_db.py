@@ -1,0 +1,681 @@
+"""
+Camada de dados Supabase para o app Controle Grand Chase.
+Usa apenas a anon/publishable key (segura para app desktop distribuido).
+
+Tabelas (RLS ativo: cada usuario acessa somente os proprios dados):
+  user_characters        -> aba "Geral"
+  user_pecas_void        -> aba "Pecas (Void)"
+  user_acessorios_titulo -> aba "Acessorios Titulo"
+  user_semanais          -> aba "Semanais"
+  user_profiles          -> perfil do usuario (username)
+
+Observacoes:
+  - A sessao de autenticacao fica em memoria no objeto Client, por isso o
+    cliente autenticado deve ser criado no login e reaproveitado no app.
+  - No app/plancheta a coluna de nome aparece como "Nome"; no banco ela se
+    chama "character_name" (traduzida pelos aliases abaixo).
+"""
+
+import math
+
+from supabase import create_client, Client
+
+from opcoes import PERSONAGENS, coluna_banco, normalizar
+
+# CONFIGURACOES DO SUPABASE (substitua se necessario)
+SUPABASE_URL = "https://rtpwvfrdhrvtulvvctze.supabase.co"
+SUPABASE_KEY = "sb_publishable_PsTxETk25rwmweJE17gyqA_MhRBgBAI"
+
+# Colunas realmente existentes em cada tabela
+COLUNAS = {
+    "personagens": [
+        "character_name", "poder", "torre_das_ilusoes", "vazio_uni",
+        "vazio_apo", "libertacao", "nucleo", "nucleos_epicos",
+        # contadores proprios (13/11): recompensa de missao e libertacao
+        "nucleos_dimensionais", "fragmento_vazio_disperso",
+        "libertacao_nucleos", "libertacao_epicos",
+    ],
+    "pecas_void": [
+        "arma", "asas", "botas", "calca", "capa", "cota", "elmo",
+        "escudos", "facas", "luvas", "mascara", "diadema",
+    ],
+    "acessorios_titulo": ["anel", "brinco", "piercing", "tornozeleira", "titulo"],
+    "semanais": [
+        "fornalha_infernal", "altar_da_runha", "void_123", "void_4",
+        "caminho_abissal", "terra_do_julgamento",
+    ],
+}
+
+TABELAS = {
+    "personagens": "user_characters",
+    "pecas_void": "user_pecas_void",
+    "acessorios_titulo": "user_acessorios_titulo",
+    "semanais": "user_semanais",
+}
+
+# Chaves de exibicao -> colunas do banco
+ALIAS = {"Nome": "character_name", "nome": "character_name"}
+
+# Tipos REAIS das colunas (descobertos por sonda no PostgREST):
+#   pecas_void e semanais -> boolean (a planilha usa "FALSO"/"VERDADEIRO")
+#   poder -> bigint; vazio_uni/vazio_apo -> integer; demais -> text
+BOOLEANAS = {
+    "personagens": set(),
+    "pecas_void": set(COLUNAS["pecas_void"]),
+    "acessorios_titulo": set(),
+    "semanais": set(COLUNAS["semanais"]),
+}
+INTEIRAS = {
+    "personagens": {"poder", "vazio_uni", "vazio_apo",
+                    "nucleos_dimensionais", "fragmento_vazio_disperso",
+                    "libertacao_nucleos", "libertacao_epicos",
+                    "nivel_chaser"},
+    "pecas_void": set(),
+    "acessorios_titulo": set(),
+    "semanais": set(),
+}
+
+# Rotulos de exibicao (banco bool -> texto da planilha) por tabela filha
+ROTULOS_BOOLEANOS = {
+    "pecas_void": ("FALSO", "VERDADEIRO"),
+    "semanais": ("Falso", "Verdadeiro"),
+}
+
+# Nome da coluna da Torre das Ilusões semanal. O banco pode ter
+# 'torre_das_ilusoes' (SQL do HANDOFF) ou 'torre_das_ilusoes_semanal'.
+TORRE_SEMANAL = "torre_das_ilusoes_semanal"
+
+# Colunas OPCIONAIS: so existem no banco se o usuario rodar o SQL do HANDOFF.
+# Verificadas uma vez por sessao (cache no proprio client).
+EXTRAS_OPCIONAIS = {
+    "semanais": {"torre_das_ilusoes", TORRE_SEMANAL},
+    # nivel do chaser (pendencia #3): um valor por conta, gravado em todas
+    # as linhas de user_characters. So e enviado se a coluna existir.
+    "personagens": {"nivel_chaser"},
+}
+
+# Colunas OPCIONAIS do user_profiles (perfil do usuario).
+# "missao_rapida" e o filtro antigo; "nick" e "avatar" sao do perfil (#7).
+COLUNAS_PERFIL = ("missao_rapida", "nick", "avatar")
+EXTRAS_BOOLEANAS = {
+    "semanais": {"torre_das_ilusoes", TORRE_SEMANAL},
+}
+
+# Limite de personagens por conta
+LIMITE_PERSONAGENS = 25
+
+# 'user_pecas_void' -> 'pecas_void' (nome do banco -> nome logico)
+LOGICA = {v: k for k, v in TABELAS.items()}
+
+
+def get_supabase() -> Client:
+    """Retorna cliente Supabase com a anon key (sem sessao de usuario)."""
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def _extras(supabase: Client, logica: str) -> set:
+    """Colunas opcionais que existem de fato no banco (cache por sessao)."""
+    cache = getattr(supabase, "_extras_cache", None)
+    if cache is None:
+        cache = {}
+        try:
+            supabase._extras_cache = cache
+        except Exception:
+            pass
+    if logica in cache:
+        return cache[logica]
+    achadas = set()
+    for col in EXTRAS_OPCIONAIS.get(logica, ()):
+        try:
+            supabase.table(TABELAS[logica]).select(col).limit(1).execute()
+            achadas.add(col)
+        except Exception:
+            pass
+    cache[logica] = achadas
+    return achadas
+
+
+def colunas_salvaveis(supabase: Client, logica: str) -> set:
+    """Conjunto (normalizado) das colunas que seriam gravadas na tabela."""
+    permitidas = (set(COLUNAS[logica]) | _extras(supabase, logica)
+                  | {"id", "character_id", "user_id"})
+    norm = {normalizar(c) for c in permitidas}
+    # a coluna da Torre semanal tambem responde pelo nome logico do app
+    if logica == "semanais" and normalizar(TORRE_SEMANAL) in norm:
+        norm.add(normalizar("torre_das_ilusoes"))
+    return norm
+
+
+def _bool(valor) -> bool:
+    """Converte rotulos da planilha/banco em booleano real."""
+    if isinstance(valor, bool):
+        return valor
+    if isinstance(valor, (int, float)):
+        return bool(valor)
+    n = normalizar(valor)
+    if n in ("", "0", "falso", "false", "f", "nao"):
+        return False
+    if n in ("1", "verdadeiro", "true", "t", "sim"):
+        return True
+    raise ValueError(f"'{valor}' nao e um valor booleano (use FALSO/VERDADEIRO).")
+
+
+def _limpar(dados: dict, tabela: str, extras=()) -> dict:
+    """Mapeia as chaves (coluna do banco OU cabecalho da planilha) para as
+    colunas reais e converte para os tipos do banco:
+      boolean -> True/False   (aceita "FALSO"/"Verdadeiro"/vazio)
+      inteiro -> int          (aceita "618002.0")
+      text    -> str          (None vira "")
+    """
+    permitidas = (set(COLUNAS[tabela]) | set(extras)
+                  | {"id", "character_id", "user_id"})
+    nome_real = {normalizar(c): c for c in permitidas}
+    # compatibilidade: o app usa o nome logico 'torre_das_ilusoes'; no banco a
+    # coluna pode se chamar 'torre_das_ilusoes_semanal'.
+    if normalizar("torre_das_ilusoes") not in nome_real and \
+            normalizar(TORRE_SEMANAL) in nome_real:
+        nome_real[normalizar("torre_das_ilusoes")] = TORRE_SEMANAL
+    bools = {normalizar(c) for c in
+             (BOOLEANAS.get(tabela, set()) | EXTRAS_BOOLEANAS.get(tabela, set()))}
+    inteiras = {normalizar(c) for c in INTEIRAS.get(tabela, set())}
+
+    saida = {}
+    for chave, valor in dados.items():
+        if chave is None:
+            continue
+        col = coluna_banco(chave)
+        if col not in nome_real:
+            continue
+        vazio = (valor is None or str(valor) == "nan"
+                 or (isinstance(valor, float) and math.isnan(valor)))
+        if col in ("id", "character_id") and vazio:
+            continue
+        if col in bools:
+            saida[nome_real[col]] = False if vazio else _bool(valor)
+        elif col in inteiras:
+            if vazio:
+                saida[nome_real[col]] = 0
+            else:
+                try:
+                    saida[nome_real[col]] = int(float(valor))
+                except (TypeError, ValueError):
+                    raise ValueError(
+                        f"'{valor}' nao e um numero valido para '{chave}'.")
+        else:
+            if vazio:
+                saida[nome_real[col]] = ""
+            elif isinstance(valor, str):
+                saida[nome_real[col]] = valor
+            else:
+                saida[nome_real[col]] = str(valor)
+    return saida
+
+
+# ---------------------------------------------------------------------------
+# PERSONAGENS (aba Geral)
+# ---------------------------------------------------------------------------
+def carregar_personagens(supabase: Client, user_id: str):
+    """Lista os personagens de um usuario. A coluna de nome vem como 'Nome'."""
+    consulta = supabase.table("user_characters").select("*")
+    if user_id:
+        consulta = consulta.eq("user_id", user_id)
+    resp = consulta.order("character_name").execute()
+    linhas = resp.data or []
+    for linha in linhas:
+        linha["Nome"] = linha.pop("character_name", "")
+        linha.pop("user_id", None)
+        linha.pop("updated_at", None)
+    return linhas
+
+
+def upsert_personagem(supabase: Client, personagem: dict, user_id: str):
+    """Insere ou atualiza um personagem do usuario logado."""
+    dados = _limpar(personagem, "personagens")
+    if not dados.get("character_name"):
+        raise ValueError("Personagem sem nome: nada foi salvo.")
+    if user_id:
+        dados["user_id"] = user_id
+    if not dados.get("user_id"):
+        raise ValueError("Usuario nao autenticado: nada foi salvo.")
+
+    if dados.get("id"):
+        supabase.table("user_characters").upsert(dados, on_conflict="id").execute()
+        return
+
+    # Linha nova: evita duplicar o mesmo nome dentro do usuario
+    existente = (
+        supabase.table("user_characters")
+        .select("id")
+        .eq("user_id", dados["user_id"])
+        .eq("character_name", dados["character_name"])
+        .limit(1)
+        .execute()
+    )
+    if existente.data:
+        dados["id"] = existente.data[0]["id"]
+        supabase.table("user_characters").upsert(dados, on_conflict="id").execute()
+        return
+
+    # Respeita o limite de personagens por conta
+    contagem = (
+        supabase.table("user_characters")
+        .select("id", count="exact")
+        .eq("user_id", dados["user_id"])
+        .limit(1)
+        .execute()
+    )
+    if (getattr(contagem, "count", None) or 0) >= LIMITE_PERSONAGENS:
+        raise ValueError(
+            f"Limite de {LIMITE_PERSONAGENS} personagens por usuario atingido.")
+    supabase.table("user_characters").insert(dados).execute()
+
+
+def deletar_personagem(supabase: Client, personagem_id):
+    supabase.table("user_characters").delete().eq("id", personagem_id).execute()
+
+
+# ---------------------------------------------------------------------------
+# ESTRUTURA INICIAL (25 personagens + uma linha por tabela filha)
+# ---------------------------------------------------------------------------
+def _padroes_personagem() -> dict:
+    """Valores iniciais de um personagem novo (slot vazio da planilha)."""
+    return {"poder": 0, "torre_das_ilusoes": "", "vazio_uni": 0,
+            "vazio_apo": 0, "libertacao": "", "nucleo": "", "nucleos_epicos": ""}
+
+
+def _padroes_filha(logica: str, extras) -> dict:
+    """Valores iniciais das tabelas filhas (FALSO / texto vazio)."""
+    saida = {}
+    for col in COLUNAS[logica]:
+        saida[col] = False if col in BOOLEANAS[logica] else ""
+    for col in extras:
+        saida[col] = False if col in EXTRAS_BOOLEANAS.get(logica, set()) else ""
+    return saida
+
+
+def _insert_lote(supabase: Client, tabela: str, linhas: list) -> int:
+    """Insere varias linhas em uma unica requisicao; se falhar, tenta uma a
+    uma (util quando so uma linha conflita). Falha de permissao/RLS nao
+    vale a pena repetir. Devolve quantas linhas foram criadas."""
+    try:
+        supabase.table(tabela).insert(linhas).execute()
+        return len(linhas)
+    except Exception as erro:
+        msg = str(erro).lower()
+        if any(t in msg for t in ("permission", "policy", "row-level",
+                                  "unauthorized", "401", "403")):
+            return 0
+    criadas = 0
+    for linha in linhas:
+        try:
+            supabase.table(tabela).insert(linha).execute()
+            criadas += 1
+        except Exception:
+            continue
+    return criadas
+
+
+def garantir_estrutura(supabase: Client, user_id: str) -> dict:
+    """Garante os 25 personagens iniciais e uma linha em cada tabela filha
+    por personagem (contas NOVAS e EXISTENTES).
+
+    - Preenche somente o que falta: nunca altera dados ja existentes.
+    - Respeita LIMITE_PERSONAGENS por conta.
+    - Devolve contagens do que criou:
+        {"personagens": n, "pecas_void": n, "acessorios_titulo": n, "semanais": n}
+      e a chave "erro" quando alguma insercao falhou (ex.: RLS sem INSERT).
+    """
+    resultado = {"personagens": 0, "pecas_void": 0,
+                 "acessorios_titulo": 0, "semanais": 0}
+    if not user_id:
+        return resultado
+    try:
+        existentes = carregar_personagens(supabase, user_id)
+    except Exception:
+        resultado["erro"] = True
+        return resultado
+
+    # 1) personagens (slots) que faltam
+    nomes = {p.get("Nome") for p in existentes}
+    faltantes = [n for n in PERSONAGENS if n not in nomes]
+    if faltantes and len(existentes) < LIMITE_PERSONAGENS:
+        cabe = LIMITE_PERSONAGENS - len(existentes)
+        novos = []
+        for nome in faltantes[:cabe]:
+            linha = {"user_id": user_id, "character_name": nome}
+            linha.update(_padroes_personagem())
+            novos.append(linha)
+        criados = _insert_lote(supabase, "user_characters", novos)
+        resultado["personagens"] = criados
+        if not criados:
+            resultado["erro"] = True
+        try:
+            existentes = carregar_personagens(supabase, user_id)
+        except Exception:
+            return resultado
+
+    # 2) uma linha por personagem em cada tabela filha
+    if not existentes:
+        return resultado
+    filhas = (("pecas_void", carregar_pecas_void),
+              ("acessorios_titulo", carregar_acessorios_titulo),
+              ("semanais", carregar_semanais))
+    for logica, carregar in filhas:
+        try:
+            atuais = carregar(supabase, existentes)
+        except Exception:
+            atuais = []
+        tem = {linha.get("character_id") for linha in atuais}
+        extras = _extras(supabase, logica)
+        padroes = _padroes_filha(logica, extras)
+        novos = []
+        for p in existentes:
+            if p.get("id") and p["id"] not in tem:
+                linha = dict(padroes)
+                linha["character_id"] = p["id"]
+                novos.append(linha)
+        if not novos:
+            continue
+        criados = _insert_lote(supabase, TABELAS[logica], novos)
+        resultado[logica] = criados
+        if not criados:
+            resultado["erro"] = True
+    return resultado
+
+
+# ---------------------------------------------------------------------------
+# TABELAS FILHAS (ligadas por character_id)
+# ---------------------------------------------------------------------------
+def _extrair_ids_nomes(personagens):
+    ids = [p["id"] for p in personagens if p.get("id")]
+    nomes = {p["id"]: p.get("Nome", "") for p in personagens if p.get("id")}
+    return ids, nomes
+
+
+def _carregar_filha(supabase: Client, tabela: str, personagens):
+    """Carrega uma tabela filha ja com a coluna 'Nome' (do personagem) e os
+    booleanos convertidos para os rotulos da planilha (FALSO/VERDADEIRO)."""
+    logica = LOGICA.get(tabela, tabela)
+    ids, nomes = _extrair_ids_nomes(personagens)
+    if not ids:
+        return []
+    resp = (
+        supabase.table(tabela)
+        .select("*")
+        .in_("character_id", ids)
+        .order("character_id")
+        .execute()
+    )
+    linhas = resp.data or []
+    rotulos = ROTULOS_BOOLEANOS.get(logica)
+    # protecao: um personagem nao pode ter mais de uma linha na tabela filha
+    # (historico ja teve duplicatas -> a UI mostraria o mesmo char N vezes)
+    vistas = {}
+    for linha in linhas:
+        chave = linha.get("character_id")
+        if chave in vistas:
+            vistas[chave].update(linha)      # a ultima gravada prevalece
+            continue
+        vistas[chave] = linha
+    linhas = list(vistas.values())
+    for linha in linhas:
+        linha["Nome"] = nomes.get(linha.get("character_id"), "")
+        linha.pop("updated_at", None)
+        if rotulos:
+            for chave, valor in list(linha.items()):
+                if isinstance(valor, bool):
+                    linha[chave] = rotulos[1] if valor else rotulos[0]
+    return linhas
+
+
+def _upsert_filha(supabase: Client, tabela: str, dados: dict):
+    """Insere/atualiza uma linha filha pelo id ou pelo personagem vinculado.
+    `tabela` pode vir como nome do banco ('user_pecas_void') ou logico
+    ('pecas_void')."""
+    logica = LOGICA.get(tabela, tabela)
+    extras = _extras(supabase, logica)
+    payload = _limpar(dados, logica, extras)
+    if not payload:
+        return
+    if payload.get("id"):
+        supabase.table(tabela).upsert(payload, on_conflict="id").execute()
+        return
+
+    character_id = payload.get("character_id")
+    if not character_id:
+        return  # sem vinculo com personagem: nada a salvar
+
+    existente = (
+        supabase.table(tabela)
+        .select("id")
+        .eq("character_id", character_id)
+        .limit(1)
+        .execute()
+    )
+    if existente.data:
+        payload["id"] = existente.data[0]["id"]
+        supabase.table(tabela).upsert(payload, on_conflict="id").execute()
+    else:
+        supabase.table(tabela).insert(payload).execute()
+
+
+# ---------------------------------------------------------------------------
+# SALVAMENTO EM LOTE (poucas requisicoes -> nao trava a interface)
+# ---------------------------------------------------------------------------
+# nome da aba no app -> nome logico da tabela
+ABAS_TABELAS = {
+    "Geral": "personagens",
+    "Peças (Void)": "pecas_void",
+    "Acessórios Título": "acessorios_titulo",
+    "Semanais": "semanais",
+}
+
+
+# ------------------------------------------------------------- perfil ----
+def ler_perfil(supabase: Client, user_id: str) -> dict:
+    """Le o perfil do usuario (nick, avatar, missoes).
+
+    Devolve {} se a coluna nao existir (o app funciona sem elas).
+    """
+    if not user_id:
+        return {}
+    try:
+        resp = (supabase.table("user_profiles").select("*")
+                .eq("id", user_id).limit(1).execute())
+        linhas = getattr(resp, "data", None) or []
+        if linhas:
+            return linhas[0]
+    except Exception:
+        pass
+    return {}
+
+
+def _coluna_perfil_existe(supabase: Client, coluna: str) -> bool:
+    """A coluna opcional existe no user_profiles?"""
+    try:
+        supabase.table("user_profiles").select(coluna).limit(1).execute()
+        return True
+    except Exception:
+        return False
+
+
+def salvar_perfil(supabase: Client, user_id: str, dados: dict) -> bool:
+    """Grava os campos do perfil (ignora os que nao existem no banco)."""
+    if not user_id:
+        return False
+    campos = {k: v for k, v in dados.items() if v is not None}
+    if not campos:
+        return False
+    gravados = {}
+    for chave, valor in campos.items():
+        if _coluna_perfil_existe(supabase, chave):
+            gravados[chave] = valor
+    if not gravados:
+        return False
+    try:
+        supabase.table("user_profiles").update(gravados).eq("id", user_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def trocar_email(supabase: Client, email: str) -> str:
+    """Troca o e-mail do usuario (Supabase Auth). Devolve '' ou a mensagem."""
+    try:
+        resp = supabase.auth.update_user({"email": email})
+        erro = getattr(resp, "error", None)
+        if erro:
+            return str(erro)
+        return ""
+    except Exception as erro:
+        return str(erro)
+
+
+def trocar_senha(supabase: Client, senha: str) -> str:
+    """Troca a senha do usuario (Supabase Auth). Devolve '' ou a mensagem."""
+    try:
+        resp = supabase.auth.update_user({"password": senha})
+        erro = getattr(resp, "error", None)
+        if erro:
+            return str(erro)
+        return ""
+    except Exception as erro:
+        return str(erro)
+
+
+def _upsert_lote(supabase: Client, tabela: str, payloads: list) -> int:
+    """Grava varias linhas em poucas requisicoes.
+
+    Separa as linhas que ja tem `id` (merge) das novas (insert): o
+    PostgREST exige que todos os objetos de um lote tenham as mesmas
+    chaves, e uma linha nova nao tem `id`.
+    """
+    if not payloads:
+        return 0
+    com_id = [p for p in payloads if p.get("id")]
+    sem_id = [p for p in payloads if not p.get("id")]
+    total = 0
+    if com_id:
+        supabase.table(tabela).upsert(com_id, on_conflict="id").execute()
+        total += len(com_id)
+    if sem_id:
+        supabase.table(tabela).insert(sem_id).execute()
+        total += len(sem_id)
+    return total
+
+
+def salvar_conta(supabase: Client, user_id: str, dados_por_aba: dict) -> dict:
+    """Salva todas as abas de uma conta em LOTE (1 requisicao por tabela).
+
+    `dados_por_aba` = {"Geral": [records...], "Peças (Void)": [...], ...}
+    Cada record tem a coluna "Nome" (nome do personagem).
+
+    Devolve:
+      {"salvos": {"personagens": n, ...}, "perdidas": [colunas], "erro": None}
+    """
+    resultado = {"salvos": {}, "perdidas": [], "erro": None}
+
+    # --- colunas que o banco aceita ------------------------------------
+    permitidas = {}
+    for aba, logica in ABAS_TABELAS.items():
+        permitidas[aba] = colunas_salvaveis(supabase, logica)
+
+    # --- personagens (1 requisicao) -------------------------------------
+    linhas = dados_por_aba.get("Geral") or []
+    # colunas opcionais dos personagens (ex.: nivel_chaser): so sao enviadas
+    # se existirem de fato no banco (evita erro de "column not found")
+    extras_geral = _extras(supabase, "personagens")
+    payloads = []
+    for linha in linhas:
+        payload = _limpar(linha, "personagens", extras_geral)
+        if not payload.get("character_name"):
+            continue
+        payload["user_id"] = user_id
+        payloads.append(payload)
+        for coluna in linha:
+            if coluna in ("Nome", "id", "updated_at"):
+                continue
+            if coluna_banco(coluna) not in permitidas.get("Geral", set()):
+                resultado["perdidas"].append(str(coluna))
+    resultado["salvos"]["personagens"] = _upsert_lote(
+        supabase, "user_characters", payloads)
+
+    # --- ids dos personagens (1 requisicao) -----------------------------
+    mapa = {}
+    try:
+        for p in carregar_personagens(supabase, user_id):
+            if p.get("id") and p.get("Nome"):
+                mapa[p["Nome"]] = p["id"]
+    except Exception:
+        mapa = {}
+
+    # --- tabelas filhas (1 requisicao cada) ---------------------------
+    for aba, logica in ABAS_TABELAS.items():
+        if logica == "personagens":
+            continue
+        linhas = dados_por_aba.get(aba) or []
+        if not linhas:
+            continue
+        extras = _extras(supabase, logica)
+        payloads = []
+        for linha in linhas:
+            payload = _limpar(linha, logica, extras)
+            if not payload:
+                continue
+            nome = linha.get("Nome") or linha.get("nome")
+            if nome and nome in mapa:
+                payload["character_id"] = mapa[nome]
+            elif not payload.get("character_id"):
+                continue
+            payloads.append(payload)
+        resultado["salvos"][logica] = _upsert_lote(supabase, TABELAS[logica],
+                                                    payloads)
+
+    resultado["perdidas"] = sorted(set(resultado["perdidas"]))
+    return resultado
+
+
+# ---------------------------------------------------------------------------
+# PECAS VOID
+# ---------------------------------------------------------------------------
+def carregar_pecas_void(supabase: Client, personagens):
+    return _carregar_filha(supabase, "user_pecas_void", personagens)
+
+
+def upsert_peca_void(supabase: Client, dados: dict):
+    _upsert_filha(supabase, "user_pecas_void", dados)
+
+
+# ---------------------------------------------------------------------------
+# ACESSORIOS / TITULO
+# ---------------------------------------------------------------------------
+def carregar_acessorios_titulo(supabase: Client, personagens):
+    return _carregar_filha(supabase, "user_acessorios_titulo", personagens)
+
+
+def upsert_acessorio(supabase: Client, dados: dict):
+    _upsert_filha(supabase, "user_acessorios_titulo", dados)
+
+
+# ---------------------------------------------------------------------------
+# SEMANAIS
+# ---------------------------------------------------------------------------
+def carregar_semanais(supabase: Client, personagens):
+    return _carregar_filha(supabase, "user_semanais", personagens)
+
+
+def upsert_semanal(supabase: Client, dados: dict):
+    _upsert_filha(supabase, "user_semanais", dados)
+
+
+# ---------------------------------------------------------------------------
+# EXPORTACAO PARA EXCEL (backup local)
+# ---------------------------------------------------------------------------
+def exportar_para_excel(dados_por_tabela: dict, caminho="backup_gc.xlsx"):
+    """Exporta dicionario {nome_tabela: lista_de_dicts} para Excel."""
+    import pandas as pd
+    with pd.ExcelWriter(caminho, engine="openpyxl") as writer:
+        for nome_tabela, lista in dados_por_tabela.items():
+            df = pd.DataFrame(lista)
+            if not df.empty:
+                df.to_excel(writer, sheet_name=nome_tabela, index=False)
