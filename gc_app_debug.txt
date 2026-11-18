@@ -1,0 +1,46 @@
+CAMINHO DA MAESTRIA - RELATORIO DE DIAGNOSTICO
+==============================================================
+Data/hora: 17/11/2026 22:06:35
+Sistema: Windows 11 (AMD64)
+Python: 3.13.1 (tags/v3.13.1:0671451, Dec  3 2024, 19:06:28) [MSC v.1942 64 bit (AMD64)]
+Modo executável: False
+Pasta do app: C:\Users\Nesca\OneDrive\Documentos\Projetos_JS\caminho-da-maestria
+Pasta dos assets: C:\Users\Nesca\OneDrive\Documentos\Projetos_JS\caminho-da-maestria
+
+DEPENDENCIAS
+--------------------------------------------------------------
+OK  customtkinter 6.0.0
+OK  pandas 3.1.1
+OK  openpyxl 3.1.5
+OK  PIL 13.0.0
+OK  supabase 2.34.1
+OK  qrcode
+OK  numpy 2.5.5
+
+ARQUIVOS ESSENCIAIS
+--------------------------------------------------------------
+OK  login.py (27,611 bytes)
+OK  app_grandchase.py (115,609 bytes)
+OK  auth.py (2,041 bytes)
+OK  supabase_db.py (25,202 bytes)
+OK  assets/background.jpg (252,079 bytes)
+OK  assets/login.png (2,462,175 bytes)
+OK  assets/app.ico (370,070 bytes)
+OK  assets/personagens (4,096 bytes)
+OK  assets/perfil (8,192 bytes)
+OK  assets/chaser (4,096 bytes)
+
+CONEXAO SUPABASE
+--------------------------------------------------------------
+OK  Cliente Supabase criado
+AVISO  Sem sessão ativa
+
+LOGS LOCAIS
+--------------------------------------------------------------
+SEM LOG  App
+SEM LOG  Atualização
+
+RESUMO
+--------------------------------------------------------------
+Problemas encontrados: 0
+Teste o app normalmente e, em caso de falha, envie este relatório.
