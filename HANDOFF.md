@@ -2178,6 +2178,26 @@ python publicar_release.py
 **Nada trava o programa:** rede/GitHub fora do ar, chave invalida ou
 qualquer erro -> o app abre normalmente (tudo em `try/except`).
 
+**Detalhes que mudaram durante a implementacao (importantes!):**
+
+| Assunto | Decisao |
+|---|---|
+| **consulta do GitHub** | usa os **feeds Atom** (`/commits/main.atom` e `/releases.atom`), **nao a API**: a API tem limite de 60/hora por IP e varios PCs da guilda no mesmo IP estourariam |
+| **download da release** | URL previsivel: `/releases/latest/download/Caminho-da-Maestria.zip` (o asset **nao pode ter espaco** — o GitHub troca por ponto) |
+| **versao da release** | a entrada do feed com o `updated` mais novo (o feed vem em ordem de criacao) |
+| **a troca dos arquivos** | o Windows nao deixa trocar um `.exe` em uso: quem troca (e **reabre** o programa) e um `.cmd` auxiliar, **depois** que o app fecha |
+| **o app nao se relanca** | se ele abrisse de novo antes da troca, os arquivos ficariam em uso e a copia falharia |
+| **a pasta temporaria** | so e apagada no **erro** (no sucesso, quem apaga e o auxiliar, depois de copiar) |
+| **o git** | e achado mesmo fora do PATH (`caminho_git()`) |
+| **log** | `%LOCALAPPDATA%\\Caminho da Maestria\\log_atualizacao.log` |
+
+**Testado de verdade:**
+- clone atrasado (2 commits) -> detectou e fez `git pull`: `ATUALIZACAO
+  AUTOMATICA OK`;
+- `.exe` instalado (sem `.git`), com a versao falsificada -> baixou a
+  release (217 MB), trocou os arquivos e **abriu de novo com a versao
+  nova**: `AUTO-UPDATE DO EXE OK (baixou, trocou e reiniciou)`.
+
 ## 6. Pendências (17/11/2026)
 > As pendências **1, 2 e 3 já foram implementadas** (ver 5.6, 5.7 e 5.9).
 > As decisões já fechadas estão em 6.1; as tarefas em 6.2.
