@@ -93,6 +93,7 @@ Pasta: `C:\Users\guilh\Downloads\Controle GrandChase\`
 | `atualizacao.py` | **NOVO**: a atualizacao automatica (confere o GitHub ao abrir). |
 | `gravar_versao.py` | **NOVO**: grava o commit em `assets/versao.txt` (na hora do build). |
 | `publicar_release.py` | **NOVO**: empacota e publica a release no GitHub. |
+| `gerar_instalador.py` | o gerador do instalador (revisa o bundle antes). |
 | `teste_zerar_semanais.py` | **NOVO**: teste da funcao de limpeza (pela API). |
 | `assets/perfil/` | **NOVO**: as 25 fotos de perfil (`elesis_icon.png`...). |
 | `assets/perfil/gerar_icone.py` | **NOVO**: gera o icone de perfil a partir do retrato (recorte da cabeca + rembg + clareamento). |
@@ -2197,6 +2198,33 @@ qualquer erro -> o app abre normalmente (tudo em `try/except`).
 - `.exe` instalado (sem `.git`), com a versao falsificada -> baixou a
   release (217 MB), trocou os arquivos e **abriu de novo com a versao
   nova**: `AUTO-UPDATE DO EXE OK (baixou, trocou e reiniciou)`.
+
+### 5.39 📦 O instalador no GitHub (17/11)
+
+O instalador (com a versao mais nova) foi publicado como **asset da
+Release** do GitHub:
+
+```
+https://github.com/guitador123/caminho-da-maestria/releases/latest/download/Caminho-da-Maestria-Instalador.zip
+```
+
+A release tem os dois arquivos:
+
+| Arquivo | Para que serve |
+|---|---|
+| `Caminho-da-Maestria-Instalador.zip` (218 MB) | o **instalador** (instala sem Python) |
+| `Caminho-da-Maestria.zip` (217 MB) | o programa pronto (e o que o `.exe` baixa para se atualizar) |
+
+**O nome do asset nao pode ter espaco** (o GitHub troca por ponto) — por
+isso `gerar_instalador.py` e `publicar_release.py` usam
+`Caminho-da-Maestria-Instalador.zip` e `Caminho-da-Maestria.zip`.
+
+**O `publicar_release.py` agora sobe os dois** (o programa e o
+instalador), entao da proxima vez e so rodar ele.
+
+**Testado de ponta a ponta:** baixou o instalador do GitHub (228 MB em
+14s), descompactou, instalou (atalhos + desinstalador), **abriu o
+programa** e desinstalou: `INSTALADOR DO GITHUB OK`.
 
 ## 6. Pendências (17/11/2026)
 > As pendências **1, 2 e 3 já foram implementadas** (ver 5.6, 5.7 e 5.9).

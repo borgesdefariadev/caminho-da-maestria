@@ -26,7 +26,8 @@ RAIZ = os.path.dirname(os.path.abspath(__file__))
 BUILD = os.path.join(RAIZ, "dist", "Caminho da Maestria")
 SAIDA = os.path.join(RAIZ, "instalador")
 NOME_PASTA = "Caminho da Maestria - Instalador"
-NOME_ZIP = "Caminho da Maestria - Instalador.zip"
+# sem espaco: o GitHub troca espaco por ponto no nome do asset
+NOME_ZIP = "Caminho-da-Maestria-Instalador.zip"
 EXE = "Caminho da Maestria.exe"
 
 DESTINO_PADRAO = "%LOCALAPPDATA%\\Caminho da Maestria"

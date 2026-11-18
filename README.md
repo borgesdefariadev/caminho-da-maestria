@@ -11,8 +11,10 @@ Chase**. Roda no Windows (desktop), com login no Supabase.
 
 ### Opção 1 - pelo instalador (pronto, sem Python)
 
-Baixe o `Caminho da Maestria - Instalador.zip`, descompacte **inteiro** e
-clique em **`Instalar.cmd`**.
+**Baixe o instalador direto do GitHub:**
+[https://github.com/guitador123/caminho-da-maestria/releases/latest/download/Caminho-da-Maestria-Instalador.zip](https://github.com/guitador123/caminho-da-maestria/releases/latest/download/Caminho-da-Maestria-Instalador.zip)
+
+Descompacte **inteiro** e clique em **`Instalar.cmd`**.
 
 - instala em `%LOCALAPPDATA%\Caminho da Maestria` (não pede senha de admin);
 - cria os atalhos (Área de Trabalho e Menu Iniciar);
@@ -55,6 +57,15 @@ Pronto: os PCs da guilda pegam a versão nova no próximo `atualizar.bat`.
 > É o jeito **sem instalador**: você publica no GitHub e, lá na guilda,
 > é só dar dois cliques no `atualizar.bat` (ele faz o `git pull` e abre
 > o programa).
+
+---
+
+## Releases (GitHub)
+
+| Arquivo | Para que serve |
+|---|---|
+| `Caminho-da-Maestria-Instalador.zip` | o **instalador** (instala tudo, sem Python) |
+| `Caminho-da-Maestria.zip` | o programa pronto (e o que o `.exe` baixa para se atualizar) |
 
 ---
 

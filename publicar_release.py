@@ -97,6 +97,14 @@ def main():
         print(resultado.stdout[-800:])
         raise SystemExit("ERRO: o pacote tem segredo (veja o relatorio)")
 
+    print("\n4b) montando o instalador (com o programa dentro)...")
+    instalador = os.path.join(RAIZ, "instalador")
+    try:
+        resultado = rodar([PYTHON, "gerar_instalador.py"], timeout=3600)
+        print(resultado.stdout.strip()[-400:])
+    except Exception as erro:
+        print("AVISO: nao consegui montar o instalador:", erro)
+
     print("\n5) publicando a release no GitHub...")
     # se ja existe uma release com esse nome, apaga (para republicar)
     antigo_release = rodar([GH, "release", "view", versao, "--repo",
@@ -108,10 +116,14 @@ def main():
     notas = (f"Versao {versao} de {datetime.now():%d/%m/%Y %H:%M}.\n\n"
              "O .exe instalado baixa esta versao sozinho na proxima vez "
              "que for aberto.")
-    resultado = rodar([GH, "release", "create", versao, zip_caminho,
-                       "--repo", "guitador123/caminho-da-maestria",
-                       "--title", f"Caminho da Maestria {versao}",
-                       "--notes", notas])
+    arquivos = [zip_caminho]
+    instalador_zip = os.path.join(instalador, "Caminho-da-Maestria-Instalador.zip")
+    if os.path.exists(instalador_zip):
+        arquivos.append(instalador_zip)
+    resultado = rodar([GH, "release", "create", versao] + arquivos +
+                       ["--repo", "guitador123/caminho-da-maestria",
+                        "--title", f"Caminho da Maestria {versao}",
+                        "--notes", notas])
     print(resultado.stdout.strip() or resultado.stderr.strip()[-600:])
     if resultado.returncode != 0:
         raise SystemExit("ERRO ao publicar a release")
